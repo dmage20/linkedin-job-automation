@@ -1,0 +1,72 @@
+# Dependencies
+node_modules/
+/vendor/bundle
+
+# Production builds
+/frontend/dist
+/frontend/build
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/backend/log/*.log
+/backend/tmp/
+
+# Database
+/backend/db/development.sqlite3
+/backend/db/test.sqlite3
+*.sqlite3
+*.sqlite3-journal
+
+# Rails
+/backend/config/master.key
+/backend/config/credentials.yml.enc
+/backend/tmp/
+/backend/storage/
+/backend/public/assets/
+/backend/public/packs/
+/backend/public/packs-test/
+/backend/coverage/
+
+# Python (for scraper scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+.coverage
+
+# Browser automation
+/demo/screenshots/
+/demo/downloads/
+playwright-report/
+test-results/
+
+# Deployment
+/deploy/secrets/
+/deploy/*.pem
+/deploy/*.key
