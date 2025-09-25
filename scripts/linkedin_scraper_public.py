@@ -7,7 +7,6 @@ Uses public LinkedIn job search pages
 
 import asyncio
 import logging
-import json
 import requests
 from playwright.async_api import async_playwright
 from datetime import datetime
@@ -42,43 +41,84 @@ class PublicLinkedInJobScraper:
         if self.context:
             await self.context.close()
 
-    async def search_jobs(self, search_term: str = "Ruby Developer", location: str = "United States") -> List[Dict]:
+    async def search_jobs(self, search_term: str = "Ruby Developer", location: str = "United States", max_pages: int = 1) -> List[Dict]:
         """
         Search for jobs on public LinkedIn pages
+        Args:
+            search_term: Job search keywords
+            location: Job location
+            max_pages: Number of pages to scrape (default: 1)
         """
+        all_jobs = []
+        seen_urls = set()  # Track unique job URLs to avoid duplicates
+
         try:
-            # Build search URL for public LinkedIn
             encoded_keywords = urllib.parse.quote(search_term)
             encoded_location = urllib.parse.quote(location)
-            search_url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_keywords}&location={encoded_location}"
 
-            print(f"🔍 Searching for '{search_term}' jobs in '{location}'...")
-            print(f"🌐 URL: {search_url}")
+            print(f"🔍 Searching for '{search_term}' jobs in '{location}' ({max_pages} pages)...")
 
-            # Navigate to search results
-            await self.page.goto(search_url)
-            await self.page.wait_for_load_state('load')
+            for page_num in range(max_pages):
+                # Calculate start parameter for pagination (LinkedIn uses 25 jobs per page)
+                start = page_num * 25
 
-            # Wait for job listings to load
-            try:
-                await self.page.wait_for_selector('ul[role="list"]', timeout=10000)
-                print("✅ Job listings loaded")
-            except:
-                print("⚠️ No job listings found, trying alternative wait...")
-                await asyncio.sleep(3)
+                # Build search URL with pagination
+                if start == 0:
+                    search_url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_keywords}&location={encoded_location}"
+                else:
+                    search_url = f"https://www.linkedin.com/jobs/search/?keywords={encoded_keywords}&location={encoded_location}&start={start}"
 
-            # Extract jobs from the page
-            jobs = await self.extract_jobs()
+                print(f"\n📄 Scraping page {page_num + 1}/{max_pages}...")
+                print(f"🌐 URL: {search_url}")
 
-            if jobs:
-                # Send to backend if configured
-                await self.send_jobs_to_backend(jobs)
+                # Navigate to search results
+                await self.page.goto(search_url)
+                await self.page.wait_for_load_state('load')
 
-            return jobs
+                # Wait for job listings to load
+                try:
+                    await self.page.wait_for_selector('ul[role="list"]', timeout=10000)
+                    print("✅ Job listings loaded")
+                except:
+                    print("⚠️ No job listings found, trying alternative wait...")
+                    await asyncio.sleep(3)
+
+                # Extract jobs from the current page
+                page_jobs = await self.extract_jobs()
+
+                if not page_jobs:
+                    print(f"⚠️ No jobs found on page {page_num + 1}, stopping pagination")
+                    break
+
+                # Filter out duplicate jobs based on URL
+                new_jobs = []
+                for job in page_jobs:
+                    job_url = job.get('url', '')
+                    if job_url and job_url not in seen_urls:
+                        seen_urls.add(job_url)
+                        new_jobs.append(job)
+                    elif not job_url:  # Jobs without URLs are added (fallback)
+                        new_jobs.append(job)
+
+                print(f"✅ Found {len(page_jobs)} jobs on page {page_num + 1} ({len(new_jobs)} unique)")
+                all_jobs.extend(new_jobs)
+
+                # Rate limiting: wait between pages to be respectful
+                if page_num < max_pages - 1:  # Don't wait after the last page
+                    print(f"⏳ Waiting 2 seconds before next page...")
+                    await asyncio.sleep(2)
+
+            print(f"\n🎉 Total unique jobs scraped: {len(all_jobs)}")
+
+            # Send all jobs to backend if configured
+            if all_jobs:
+                await self.send_jobs_to_backend(all_jobs)
+
+            return all_jobs
 
         except Exception as e:
             logger.error(f"Job search failed: {e}")
-            return []
+            return all_jobs if 'all_jobs' in locals() else []
 
     async def extract_jobs(self) -> List[Dict]:
         """
@@ -106,7 +146,7 @@ class PublicLinkedInJobScraper:
                         print(f"✅ Found {len(job_elements)} job elements with selector: {selector}")
 
                         # Extract data from each job element
-                        for i, job_element in enumerate(job_elements[:15]):  # Limit to first 15 jobs
+                        for i, job_element in enumerate(job_elements):  # Limit to first 15 jobs
                             try:
                                 job_data = await self.extract_single_job(job_element)
                                 if job_data and job_data['title'] != "Unknown Job":
@@ -330,15 +370,17 @@ async def main():
         await scraper.start()
         print("✅ Browser started")
 
-        # Search for jobs
-        jobs = await scraper.search_jobs("Ruby on Rails", "United States")
+        # Search for jobs with pagination (scrape 3 pages)
+        jobs = await scraper.search_jobs("Ruby on Rails", "United States", max_pages=3)
 
         if jobs:
-            print(f"🎉 Found {len(jobs)} jobs!")
-            for i, job in enumerate(jobs[:10], 1):  # Show first 10 jobs
+            print(f"🎉 Found {len(jobs)} total jobs across all pages!")
+            for i, job in enumerate(jobs[:15], 1):  # Show first 15 jobs
                 print(f"{i}. {job['title']} at {job['company']} - {job['location']}")
                 if job['url']:
                     print(f"   🔗 {job['url']}")
+            if len(jobs) > 15:
+                print(f"   ... and {len(jobs) - 15} more jobs")
         else:
             print("⚠️ No jobs found")
 
