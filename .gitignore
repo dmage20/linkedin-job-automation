@@ -69,4 +69,11 @@ test-results/
 # Deployment
 /deploy/secrets/
 /deploy/*.pem
-/deploy/*.key
+/deploy/*.keylinkedin_session/Default/Cache/
+linkedin_session/Default/Code Cache/
+linkedin_session/GrShaderCache/
+linkedin_session/ShaderCache/
+linkedin_session/Default/DawnGraphiteCache/
+linkedin_session/Default/BrowsingTopicsSiteData*
+linkedin_session/Default/BudgetDatabase/
+linkedin_session/Default/AutofillStrikeDatabase/
